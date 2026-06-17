@@ -1,0 +1,27 @@
+# Environments
+.venv/
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Streamlit
+.streamlit/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Data / Uploads
+# We ignore raw data files to prevent leaking telemetry to GitHub
+*.xlsx
+*.csv
+!test_output.xlsx
+
+# Mac OS
+.DS_Store
+
+# Ignore tasks/logs
+.system_generated/
