@@ -43,10 +43,14 @@ def process_telemetry_file(file_obj, filename, report_config_id=1):
             continue
             
         # 2. Determine Platform
-        platform = 'Unknown'
+        # Use sheet name directly for platform
+        platform = str(sheet_name).strip()
+        
+        # Determine internal normalized platform for metric mapping lookups
+        normalized_platform = 'Unknown'
         for rule in platform_rules:
             if rule['pattern'].lower() in sheet_name.lower():
-                platform = rule['platform']
+                normalized_platform = rule['platform']
                 break
 
         # 3. Basic Cleaning
@@ -73,6 +77,7 @@ def process_telemetry_file(file_obj, filename, report_config_id=1):
         df['source_row'] = df.index + 2 
         df['source_sheet'] = sheet_name
         df['platform'] = platform
+        df['normalized_platform'] = normalized_platform
 
         # Fill NaN trace names with the section name (e.g., app_cold_start) so they aren't dropped
         df['trace_name'] = df['trace_name'].fillna(df['section'])
@@ -101,7 +106,7 @@ def process_telemetry_file(file_obj, filename, report_config_id=1):
         # Metric Normalization
         def normalize_metric(row):
             m = row['metric_name']
-            p = row['platform']
+            p = row['normalized_platform']
             
             # Check specific platform mapping first
             if (m, p) in metric_mappings:
@@ -281,13 +286,21 @@ def process_telemetry_file(file_obj, filename, report_config_id=1):
     # 10. Generate Output Excel Bytes
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        results_pivot.to_excel(writer, sheet_name='Results', index=False)
+        if 'platform' in results_pivot.columns:
+            for plat in results_pivot['platform'].unique():
+                plat_df = results_pivot[results_pivot['platform'] == plat]
+                # Excel sheet names can only be 31 characters
+                safe_sheet_name = str(plat)[:31]
+                plat_df.to_excel(writer, sheet_name=safe_sheet_name, index=False)
+        else:
+            results_pivot.to_excel(writer, sheet_name='Results', index=False)
+            
         traceability_df.to_excel(writer, sheet_name='Traceability', index=False)
         metric_map_df.to_excel(writer, sheet_name='Metric Mapping', index=False)
         
         # Notes sheet
         notes_df = pd.DataFrame([
-            ['Platform', 'Derived from source sheet naming conventions'],
+            ['Platform', 'Mapped exactly to the input raw data sheet name'],
             ['Network Type', 'Normalized from radio_type based on db rules'],
             ['Percentiles', f'Calculated using {", ".join(statistics_to_calc)}'],
             ['Missing values', 'Blank cells mean metric not present'],
